@@ -1,14 +1,11 @@
 import os
-import re
 import requests
 from datetime import datetime, timezone
-from playwright.sync_api import sync_playwright
 
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 URL = "https://goldprice.org/live-gold-price.html"
-
 
 def send_telegram(message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -19,47 +16,30 @@ def send_telegram(message: str) -> None:
     response = requests.post(url, json=payload, timeout=20)
     response.raise_for_status()
 
-
-def parse_first_big_price(text: str) -> float:
-    candidates = re.findall(r"\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b", text)
-    values = []
-    for c in candidates:
-        try:
-            v = float(c.replace(",", ""))
-            if 1000 <= v <= 10000:
-                values.append(v)
-        except ValueError:
-            pass
-
-    if not values:
-        raise ValueError("No plausible gold price found in page text.")
-
-    return values[0]
-
-
-def fetch_usd_oz_gold() -> float:
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-
-        page.goto(URL, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(10000)
-
-        body_text = page.locator("body").inner_text()
-        browser.close()
-
-    return parse_first_big_price(body_text)
-
-
 if __name__ == "__main__":
-    price = fetch_usd_oz_gold()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    message = (
-        "Gold Update\n\n"
-        "USD\n"
-        f"- oz: {price:,.2f}\n\n"
-        f"Updated: {now}"
-    )
+    try:
+        r = requests.get(
+            URL,
+            timeout=30,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                )
+            },
+        )
+        msg = (
+            f"Gold bot diagnostics\n"
+            f"Time: {now}\n"
+            f"HTTP status: {r.status_code}\n"
+            f"Final URL: {r.url}\n"
+            f"Content length: {len(r.text)}\n\n"
+            f"First 500 chars:\n{r.text[:500]}"
+        )
+    except Exception as e:
+        msg = f"Gold bot diagnostics failed\nTime: {now}\nError: {e}"
 
-    send_telegram(message)
+    send_telegram(msg)
