@@ -42,8 +42,8 @@ def fetch_usd_oz_gold() -> float:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        page.goto(URL, wait_until="networkidle", timeout=60000)
-        page.wait_for_timeout(5000)
+        page.goto(URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(10000)
 
         body_text = page.locator("body").inner_text()
         browser.close()
